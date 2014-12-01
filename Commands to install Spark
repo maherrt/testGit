@@ -1,0 +1,124 @@
+#http://mbonaci.github.io/mbo-spark/
+# after installing JDK , SCALA, Hadoop
+
+# to check whether the installation went well:
+scala -version
+# should spit out:
+Scala code runner version 2.9.3 -- Copyright 2002-2011, LAMP/EPFL
+
+# I'll set SCALA_HOME only for my user sessions
+# who knows, maybe my wife will like to use another version :)
+echo "SCALA_HOME=/usr/share/java" >> ~/.pam_environment
+# again, same as with java, to reload:
+source ~/.pam_environment
+
+#Install Maven
+sudo apt-get install maven
+
+
+# clone the development repo:
+git clone git://github.com/apache/incubator-spark.git
+
+# rename the folder:
+mv incubator-spark spark
+
+# go into it:
+cd spark
+
+#Setting up Maven’s Memory Usage
+export MAVEN_OPTS="-Xmx2g -XX:MaxPermSize=512M -XX:ReservedCodeCacheSize=512m"
+
+# then trigger the build on Apache Hadoop 2.5.0
+mvn -Pyarn -Phadoop-2.5 -Dhadoop.version=2.5.0 -DskipTests clean package
+
+
+./bin/spark-shell --master local[4]
+
+./bin/spark-class org.apache.spark.deploy.worker.Worker spark://Ubuntu-Aspire-ZS600:7077
+
+
+# to start the Spark master on your localhost:
+./sbin/start-master.sh
+
+# outputs master's class and log file info:
+starting org.apache.spark.deploy.master.Master, logging to /home/mbo/spark/bin/../
+logs/spark-mbo-org.apache.spark.deploy.master.Master-1-mbo-ubuntu-vbox.out
+
+# create spark-env.sh file using the provided template:
+cp ./conf/spark-env.sh.template ./conf/spark-env.sh
+
+# append a configuration param to the end of the file:
+echo "export SPARK_WORKER_INSTANCES=4" >> ./conf/spark-env.sh
+
+# to start slave workers:
+./sbin/start-slaves.sh
+
+# first, let's stop the master and all the slaves:
+./sbin/stop-all.sh
+
+# then, to start all of them in one go:
+./sbin/start-all.sh
+
+
+# launch scala repl
+MASTER=spark://Ubuntu-Aspire-ZS600:7077 ./bin/spark-shell
+
+
+/* throwing darts and examining coordinates */
+val NUM_SAMPLES = 100000
+val count = sc.parallelize(1 to NUM_SAMPLES).map{i =>
+  val x = Math.random * 2 - 1
+  val y = Math.random * 2 - 1
+  if (x * x + y * y < 1) 1.0 else 0.0
+}.reduce(_ + _)
+println("Pi is roughly " + 4 * count / NUM_SAMPLES)
+
+
+# Run application locally on 8 cores
+./bin/spark-submit \
+  --class org.apache.spark.examples.SparkPi \
+  --master local[8] \
+  /home/maherrt/spark/examples/target/spark-examples_2.10-1.2.0-SNAPSHOT.jar \
+  100
+
+# Run on a Spark standalone cluster
+./bin/spark-submit \
+  --class org.apache.spark.examples.SparkPi \
+  --master spark://Ubuntu-Aspire-ZS600:7077 \
+  --executor-memory 20G \
+  --total-executor-cores 100 \
+  /home/maherrt/spark/examples/target/spark-examples_2.10-1.2.0-SNAPSHOT.jar \
+  1000
+
+# Run a Python application on a cluster
+./bin/spark-submit \
+  --master spark://Ubuntu-Aspire-ZS600:7077 \
+  examples/src/main/python/pi.py \
+  1000
+
+# Run on a Spark standalone cluster
+./bin/spark-submit \
+  --class org.apache.spark.examples.SparkPi \
+  --master spark://Ubuntu-Aspire-ZS600:7077 \
+  /home/maherrt/spark/examples/target/scala-2.10/spark-examples-1.2.0-SNAPSHOT-hadoop2.5.0.jar \
+  100
+
+#all you need to do to prepare Spark for opening in Eclipse is run:
+
+sbt/sbt eclipse
+ 
+#test not working!!
+mvn -Pyarn -Phadoop-2.5 -DskipTests -Phive clean package
+mvn -Pyarn -Phadoop-2.5 -Phive test
+mvn -Dhadoop.version=2.5.0 -DwildcardSuites=org.apache.spark.repl.ReplSuite test
+
+#Connecting an Application to the Cluster
+./bin/spark-shell --master spark://Ubuntu-Aspire-ZS600:7077
+
+./bin/spark-submit \
+  --class org.apache.spark.examples.SparkPi \
+  --master local[4] \
+  /path/to/examples.jar \
+  100
+
+ssh-copy-id maherrt@Ubuntu-Aspire-ZS600
