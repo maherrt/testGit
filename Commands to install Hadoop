@@ -1,0 +1,180 @@
+Hadoop 2.5 Installation Guide
+maherrt@Ubuntu-Aspire-ZS600:~$ sudo apt-get install python-software-properties
+maherrt@Ubuntu-Aspire-ZS600:~$ sudo add-apt-repository ppa:webupd8team/java
+maherrt@Ubuntu-Aspire-ZS600:~$ sudo apt-get update
+maherrt@Ubuntu-Aspire-ZS600:~$ sudo apt-get install openjdk-7-jdk
+maherrt@Ubuntu-Aspire-ZS600:~$ cd /usr/lib/jvm/
+maherrt@Ubuntu-Aspire-ZS600:~$ ls
+maherrt@Ubuntu-Aspire-ZS600:~$ sudo ln -s java-7-openjdk-amd64 jdk
+maherrt@Ubuntu-Aspire-ZS600:~$ ls
+maherrt@Ubuntu-Aspire-ZS600:~$ cd ~
+maherrt@Ubuntu-Aspire-ZS600:~$ java -version
+
+# Add new user to hadoop
+maherrt@Ubuntu-Aspire-ZS600:~$ sudo addgroup hadoop
+maherrt@Ubuntu-Aspire-ZS600:~$ sudo adduser --ingroup hadoop hduser
+
+# Configuring SSH
+maherrt@Ubuntu-Aspire-ZS600:~$ sudo apt-get install  openssh-server
+hduser@Ubuntu-Aspire-ZS600:~$ ssh-keygen -t rsa -P ""
+hduser@Ubuntu-Aspire-ZS600:~$ ls -la $HOME/.ssh
+hduser@Ubuntu-Aspire-ZS600:~$ cat $HOME/.ssh/id_rsa.pub
+hduser@Ubuntu-Aspire-ZS600:~$ cat $HOME/.ssh/id_rsa.pub >> $HOME/.ssh/authorized_keys
+hduser@Ubuntu-Aspire-ZS600:~$ ls -la $HOME/.ssh
+hduser@Ubuntu-Aspire-ZS600:~$ cat  $HOME/.ssh/authorized_keys
+
+maherrt@Ubuntu-Aspire-ZS600:~$ sudo gedit /etc/sysctl.conf
+# paste :
+	# disable ipv6
+	net.ipv6.conf.all.disable_ipv6 = 1
+	net.ipv6.conf.default.disable_ipv6 = 1
+	net.ipv6.conf.lo.disable_ipv6 = 1
+
+hduser@Ubuntu-Aspire-ZS600:~$ cat /proc/sys/net/ipv6/conf/all/disable_ipv6   # should be 0
+
+maherrt@Ubuntu-Aspire-ZS600:~/Downloads/hadoop-2.5.0$ ls
+maherrt@Ubuntu-Aspire-ZS600:~/Downloads/hadoop-2.5.0$ sudo tar vxzf hadoop-2.5.0.tar.gz -C /usr/local
+maherrt@Ubuntu-Aspire-ZS600:~/Downloads/hadoop-2.5.0$ cd /usr/local/
+maherrt@Ubuntu-Aspire-ZS600:/usr/local$ ls -l
+maherrt@Ubuntu-Aspire-ZS600:/usr/local$ sudo chown -R hduser:hadoop hadoop
+maherrt@Ubuntu-Aspire-ZS600:/usr/local$ ls -l
+
+#Update $HOME/.bashrc
+maherrt@Ubuntu-Aspire-ZS600:~$ cd $HOME
+maherrt@Ubuntu-Aspire-ZS600:~$ sudo gedit /home/hduser/.bashrc
+# ADD :
+# Set Hadoop-related environment variables
+export HADOOP_HOME=/usr/local/hadoop
+
+# Set JAVA_HOME (we will also configure JAVA_HOME directly for Hadoop later on)
+export JAVA_HOME=/usr/lib/jvm/jdk/
+
+# Add Hadoop bin/ sbin/ directory to PATH
+export PATH=$PATH:$HADOOP_HOME/bin
+export PATH=$PATH:$HADOOP_HOME/sbin
+
+export HADOOP_MAPRED_HOME=$HADOOP_HOME
+export HADOOP_COMMON_HOME=$HADOOP_HOME
+export HADOOP_HDFS_HOME=$HADOOP_HOME
+export YARN_HOME=$HADOOP_HOME
+
+# Some convenient aliases and functions for running Hadoop-related commands
+unalias fs &> /dev/null
+alias fs="hadoop fs"
+unalias hls &> /dev/null
+alias hls="fs -ls"
+
+# If you have LZO compression enabled in your Hadoop cluster and
+# compress job outputs with LZOP (not covered in this tutorial):
+# Conveniently inspect an LZOP compressed file from the command
+# line; run via:
+#
+# $ lzohead /hdfs/path/to/lzop/compressed/file.lzo
+#
+# Requires installed 'lzop' command.
+#
+lzohead () {
+    hadoop fs -cat $1 | lzop -dc | head -1000 | less
+}
+
+maherrt@Ubuntu-Aspire-ZS600:~$ hadoop -version
+#hadoop: command not found
+
+sudo gedit /usr/local/hadoop/etc/hadoop/hadoop-env.sh 
+# change to :
+	# The java implementation to use.
+	export JAVA_HOME=/usr/lib/jvm/jdk/
+
+#Reopen terminal
+maherrt@Ubuntu-Aspire-ZS600:~$ hadoop version
+
+#Configuring Hadoop
+
+maherrt@Ubuntu-Aspire-ZS600:~$ sudo mkdir -p /app/hadoop/tmp
+maherrt@Ubuntu-Aspire-ZS600:~$ ls -l /app/hadoop
+maherrt@Ubuntu-Aspire-ZS600:~$ sudo chown hduser:hadoop /app/hadoop/tmp
+maherrt@Ubuntu-Aspire-ZS600:~$ ls -l /app/hadoop/
+maherrt@Ubuntu-Aspire-ZS600:~$ sudo chmod 750 /app/hadoop/tmp
+
+#conf/*-site.xml
+# --------------------------------------------------------
+# --------------------------------------------------------
+maherrt@Ubuntu-Aspire-ZS600:~$ cd /usr/local/hadoop/etc/hadoop
+
+#core-site.xml --------------------------------------------------------
+maherrt@Ubuntu-Aspire-ZS600:/usr/local/hadoop/etc/hadoop$ sudo gedit core-site.xml
+#Paste following between <configuration>
+<property>
+  <name>hadoop.tmp.dir</name>
+  <value>/app/hadoop/tmp</value>
+  <description>A base for other temporary directories.</description>
+</property>
+
+<property>
+  <name>fs.default.name</name>
+  <value>hdfs://localhost:9000</value>
+  <description>The name of the default file system.  A URI whose
+  scheme and authority determine the FileSystem implementation.  The
+  uri's scheme determines the config property (fs.SCHEME.impl) naming
+  the FileSystem implementation class.  The uri's authority is used to
+  determine the host, port, etc. for a filesystem.</description>
+</property>
+
+#yarn-site.xml --------------------------------------------------------
+maherrt@Ubuntu-Aspire-ZS600:/usr/local/hadoop/etc/hadoop$ sudo gedit core-site.xml
+#Paste following between <configuration>
+<property>
+   <name>yarn.nodemanager.aux-services</name>
+   <value>mapreduce_shuffle</value>
+</property>
+<property>
+   <name>yarn.nodemanager.aux-services.mapreduce.shuffle.class</name>
+   <value>org.apache.hadoop.mapred.ShuffleHandler</value>
+</property>
+
+#mapred-site.xml --------------------------------------------------------
+maherrt@Ubuntu-Aspire-ZS600:/usr/local/hadoop/etc/hadoop$ sudo mv mapred-site.xml.template mapred-site.xml
+maherrt@Ubuntu-Aspire-ZS600:/usr/local/hadoop/etc/hadoop$ sudo gedit mapred-site.xml
+#Paste following between <configuration>
+<property>
+   <name>mapreduce.framework.name</name>
+   <value>yarn</value>
+</property>
+
+
+#hdfs-site.xml --------------------------------------------------------
+hduser@Ubuntu-Aspire-ZS600:~$ cd ~
+hduser@Ubuntu-Aspire-ZS600:~$ mkdir -p mydata/hdfs/namenode
+hduser@Ubuntu-Aspire-ZS600:~$ mkdir -p mydata/hdfs/datanode
+
+maherrt@Ubuntu-Aspire-ZS600:/usr/local/hadoop/etc/hadoop$ sudo gedit hdfs-site.xml
+#Paste following between <configuration>
+<property>
+   <name>dfs.replication</name>
+   <value>1</value>
+ </property>
+ <property>
+   <name>dfs.namenode.name.dir</name>
+   <value>file:/home/hduser/mydata/hdfs/namenode</value>
+ </property>
+ <property>
+   <name>dfs.datanode.data.dir</name>
+   <value>file:/home/hduser/mydata/hdfs/datanode</value>
+ </property>
+
+# Format Namenode
+hduser@Ubuntu-Aspire-ZS600:~$ /usr/local/hadoop/bin/hdfs namenode -format
+#or
+hduser@Ubuntu-Aspire-ZS600:~$ /usr/local/hadoop/bin/hadoop namenode -format
+
+
+
+hduser@Ubuntu-Aspire-ZS600:/usr/local/hadoop$ hadoop jar ./share/hadoop/mapreduce/hadoop-mapreduce-examples-2.5.0.jar pi 2 5
+
+#add hduser to sudo group
+sudo usermod -a -G sudo hduser
+
+http://codesfusion.blogspot.co.uk/2013/10/setup-hadoop-2x-220-on-ubuntu.html
+http://www.michael-noll.com/tutorials/running-hadoop-on-ubuntu-linux-single-node-cluster/
+https://www.youtube.com/watch?v=THne2F3Hxbw
+http://www.michael-noll.com/tutorials/writing-an-hadoop-mapreduce-program-in-python/
